@@ -1,11 +1,12 @@
 import javax.swing.*;
+import javax.swing.text.View;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.io.IOException;
 import java.net.*;
 import java.util.*;
 
-public class Client extends JFrame {
+public class Client {
     protected MulticastSocket multicastSocket = null;
     protected byte[]buf = new byte[256];
     int port;
@@ -19,24 +20,7 @@ public class Client extends JFrame {
         this.socketAddress = new InetSocketAddress(group,port) ;
         this.multicastSocket.joinGroup(socketAddress,NetworkInterface.getByInetAddress(group));
         this.multicastSocket.setSoTimeout(1000);
-        addKeyListener(new KeyAdapter() {
-            @Override
-            public void keyPressed(KeyEvent evt){
-                switch (evt.getKeyChar()) {
-                    case KeyEvent.VK_ESCAPE:
-                        fnHandler();
-                }
-            }
-        });
     }
-
-
-    void fnHandler(){
-        for(int i = 0 ;i< 3;i++) {
-            sendMsg("escape");
-        }
-    }
-
 
     void goCast(){
         try {
@@ -57,17 +41,20 @@ public class Client extends JFrame {
         try{
             multicastSocket.receive(packetRecv);
             String received = new String(packetRecv.getData(), 0, packetRecv.getLength());
-            if (received == "escape") {
+            if (received == "escape")
                 return -1;
-            }
             InetSocketAddress itemAddr = new InetSocketAddress(packetRecv.getAddress(), packetRecv.getPort());
             InetAddress tmpAddr =  itemAddr.getAddress();
-            Member member = new Member(0,received,itemAddr);
+            Member member = new Member(0,itemAddr);
             if(!connectionMap.containsKey(tmpAddr)) {
                 connectionMap.put(tmpAddr, member);
+                member.specialMsg.add(received);
                 System.out.println(member.toString() + " has joined");
+            }else if(!connectionMap.get(tmpAddr).specialMsg.contains(received)){
+                connectionMap.get(tmpAddr).specialMsg.add(received);
+                System.out.println(member.toString() + " sent these messages");
             }
-            connectionMap.get(tmpAddr).ttl = 10;
+            connectionMap.get(tmpAddr).ttl = 5;
         }catch (Exception ex){
             System.out.println(ex.getMessage());
         }
@@ -91,6 +78,7 @@ public class Client extends JFrame {
             if(tmpItem.getValue().ttl-- < 0) {
                 System.out.println(tmpItem.getValue().toString() + " has deleted");
                 iterator.remove();
+                printFlag = true;
             }
         }
         if(printFlag) {
@@ -105,11 +93,10 @@ public class Client extends JFrame {
 
     class Member{
         public int ttl = 0;
-        public String specialMsg = null;
+        public ArrayList<String> specialMsg = new ArrayList<String>();
         public SocketAddress itemAddr;
-        Member(int ttl,String specialMsg,SocketAddress itemAddr){
+        Member(int ttl,SocketAddress itemAddr){
             this.ttl = ttl;
-            this.specialMsg = specialMsg;
             this.itemAddr = itemAddr;
         }
 
