@@ -48,11 +48,11 @@ public class Client {
             Member member = new Member(0,itemAddr);
             if(!connectionMap.containsKey(tmpAddr)) {
                 connectionMap.put(tmpAddr, member);
-                member.specialMsg.add(received);
+                connectionMap.get(tmpAddr).specialMsg.add(received);
                 System.out.println(member.toString() + " has joined");
             }else if(!connectionMap.get(tmpAddr).specialMsg.contains(received)){
                 connectionMap.get(tmpAddr).specialMsg.add(received);
-                System.out.println(member.toString() + " sent these messages");
+                System.out.println(connectionMap.get(tmpAddr).toString() + " sent these messages");
             }
             connectionMap.get(tmpAddr).ttl = 5;
         }catch (Exception ex){
