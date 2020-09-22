@@ -1,15 +1,16 @@
-import java.io.Console;
+import javax.swing.*;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.io.IOException;
-import java.lang.reflect.Member;
 import java.net.*;
 import java.util.*;
 
-public class Client {
+public class Client extends JFrame {
     protected MulticastSocket multicastSocket = null;
     protected byte[]buf = new byte[256];
     int port;
     protected SocketAddress socketAddress = null;
-    protected Map<String,Member> connectionMap = new HashMap<>();
+    protected Map<InetAddress,Member> connectionMap = new HashMap<>();
 
     Client(String inetAddress, int port) throws IOException {
         InetAddress group = InetAddress.getByName(inetAddress);
@@ -18,49 +19,65 @@ public class Client {
         this.socketAddress = new InetSocketAddress(group,port) ;
         this.multicastSocket.joinGroup(socketAddress,NetworkInterface.getByInetAddress(group));
         this.multicastSocket.setSoTimeout(1000);
+        addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent evt){
+                switch (evt.getKeyChar()) {
+                    case KeyEvent.VK_ESCAPE:
+                        fnHandler();
+                }
+            }
+        });
+    }
+
+
+    void fnHandler(){
+        for(int i = 0 ;i< 3;i++) {
+            sendMsg("escape");
+        }
     }
 
 
     void goCast(){
         try {
-            while (true) {
-                Thread.sleep(100);
-                receiveMsg();
+            while (receiveMsg() != -1) {
                 checkMembers();
-                sendMsg();
+                sendMsg("Hello");
+                Thread.sleep(100);
             }
+            multicastSocket.close();
+            System.out.println("---Finished---");
         }catch (Exception ex){
             System.out.println(ex.getMessage());
         }
     }
 
-
-    void receiveMsg(){
+    int receiveMsg(){
         DatagramPacket packetRecv = new DatagramPacket(buf, buf.length);
         try{
             multicastSocket.receive(packetRecv);
             String received = new String(packetRecv.getData(), 0, packetRecv.getLength());
-            SocketAddress itemAddr = new InetSocketAddress(packetRecv.getAddress(), packetRecv.getPort());
-            Member member = new Member(0,received,itemAddr);
-            if(!connectionMap.containsKey(received)) {
-                connectionMap.put(received, member);
-                /*for (Map.Entry<String, Member> it : connectionMap.entrySet()) {
-                    System.out.println(it.toString() + " has joined" + " with special msg: " + it.getValue().specialMsg);
-                }*/
-                System.out.println(member.toString() + " has joined" + " with special msg: " + member.specialMsg);
+            if (received == "escape") {
+                return -1;
             }
-            connectionMap.get(received).ttl = 10;
-            //System.out.println(member.toString() + " has joined" + " with special msg: " + received)}
-            //System.out.println("i've got "+received);
+            InetSocketAddress itemAddr = new InetSocketAddress(packetRecv.getAddress(), packetRecv.getPort());
+            InetAddress tmpAddr =  itemAddr.getAddress();
+            Member member = new Member(0,received,itemAddr);
+            if(!connectionMap.containsKey(tmpAddr)) {
+                connectionMap.put(tmpAddr, member);
+                System.out.println(member.toString() + " has joined");
+            }
+            connectionMap.get(tmpAddr).ttl = 10;
         }catch (Exception ex){
             System.out.println(ex.getMessage());
         }
+        return 0;
     }
 
-    void sendMsg(){
+    void sendMsg(String str){
         DatagramPacket packetSend = new DatagramPacket(buf, buf.length,socketAddress);
         try {
-            packetSend.setData("111".getBytes());
+            packetSend.setData(str.getBytes());
             multicastSocket.send(packetSend);
         }catch (Exception ex){
             System.out.println(ex.getMessage());
@@ -68,13 +85,20 @@ public class Client {
     }
 
     void checkMembers(){
-        Set tmpSet = connectionMap.entrySet();
-        for(Iterator<Map.Entry<String,Member>> iterator = connectionMap.entrySet().iterator(); iterator.hasNext(); ) {
-            Map.Entry<String,Member> tmpItem = iterator.next();
-            if(tmpItem.getValue().ttl-- == 0) {
-                System.out.println(tmpItem.getValue().toString() + " has deleted" + " with special msg: " + tmpItem.getValue().specialMsg);
+        boolean printFlag = false;
+        for(Iterator<Map.Entry<InetAddress,Member>> iterator = connectionMap.entrySet().iterator(); iterator.hasNext(); ) {
+            Map.Entry<InetAddress,Member> tmpItem = iterator.next();
+            if(tmpItem.getValue().ttl-- < 0) {
+                System.out.println(tmpItem.getValue().toString() + " has deleted");
                 iterator.remove();
             }
+        }
+        if(printFlag) {
+            for(int i = 0;i< 10;i++)
+                System.out.println("     |\n");
+            System.out.println("Other users online: \n");
+            for (Map.Entry<InetAddress, Member> it : connectionMap.entrySet())
+                System.out.println(it.toString() + " has joined");
         }
     }
 
@@ -92,8 +116,7 @@ public class Client {
         @Override
         public String toString() {
             return
-                    "ttl= " + ttl +
-                            " itemAddr= " + itemAddr;
+                    "itemAddr= " + itemAddr +  " with special msg: " + specialMsg;
         }
     }
 
